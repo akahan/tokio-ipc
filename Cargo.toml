@@ -1,13 +1,13 @@
 [package]
-name = "tipsy"
+name = "tokio-ipc"
 version = "0.3.0"
 rust-version = "1.75.0"
 edition = "2021"
-authors = ["Austin Schey <aschey13@gmail.com>"]
+authors = ["Aka Han <a.akahan@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/aschey/tipsy"
-homepage = "https://github.com/aschey/tipsy"
+repository = "https://github.com/akahan/tokio-ipc"
+homepage = "https://github.com/akahan/tokio-ipc"
 keywords = ["tokio", "ipc"]
 categories = ["asynchronous", "network-programming"]
 description = "Cross-platform IPC for Tokio"

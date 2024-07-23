@@ -1,12 +1,13 @@
 use std::io;
 use std::time::Duration;
 
-use futures::channel::oneshot;
 use futures::{Future, StreamExt};
-use tipsy::{
+use futures::channel::oneshot;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
+
+use tokio_ipc::{
     Connection, Endpoint, IntoIpcPath, IpcStream, OnConflict, SecurityAttributes, ServerId,
 };
-use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 
 fn dummy_endpoint(base: &str) -> ServerId<String> {
     let num: u64 = rand::Rng::gen(&mut rand::thread_rng());
