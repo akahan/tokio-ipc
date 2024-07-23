@@ -47,10 +47,14 @@ where
     }
 }
 
+/// Endpoint options implementation for Windows systems
+#[derive(Clone, Copy)]
 pub struct EndpointOptions {
+    /// The pipe mode of a named pipe.
     pub pipe_mode: PipeMode,
 }
 
+/// Endpoint implementation for Windows systems
 pub(crate) struct Endpoint {
     path: PathBuf,
     security_attributes: SecurityAttributes,

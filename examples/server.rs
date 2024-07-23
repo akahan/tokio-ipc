@@ -1,12 +1,12 @@
 use futures::StreamExt as _;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
+use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 
-use tokio_ipc::{Endpoint, OnConflict, SecurityAttributes, ServerId};
+use tokio_ipc::{Endpoint, SecurityAttributes, ServerId};
 
 async fn run_server(path: String) {
     #[cfg(not(windows))]
     let options = Some(tokio_ipc::EndpointOptions {
-        on_conflict: OnConflict::Overwrite,
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
     });
     #[cfg(windows)]
     let options = None;

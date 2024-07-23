@@ -35,9 +35,11 @@ mod platform {
         from_std_stream, Connection, Endpoint, IpcStream, SecurityAttributes,
     };
     #[cfg(windows)]
-    pub use crate::win::{
-        Connection, Endpoint, EndpointOptions, IpcStream, PipeMode, SecurityAttributes,
+    pub(crate) use crate::win::{
+        Connection, Endpoint, IpcStream, SecurityAttributes,
     };
+    #[cfg(windows)]
+    pub use crate::win::EndpointOptions;
 }
 
 pub use platform::EndpointOptions;
