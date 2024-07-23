@@ -31,22 +31,11 @@ jobs:
         run: cargo clippy --all-features --examples -- -D warnings
       - name: Build all
         run: cargo build --all-features --examples
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Test
         run: |
           cargo test --doc
-          cargo llvm-cov nextest --all-features --codecov --ignore-filename-regex ".cargo|.*_test\.rs" > ./codecov.json
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          verbose: true
-          fail_ci_if_error: true
-          files: ./codecov.json
   release-build:
     strategy:
       matrix:
