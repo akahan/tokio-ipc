@@ -1,13 +1,11 @@
 use std::io;
 use std::time::Duration;
 
-use futures::{Future, StreamExt};
 use futures::channel::oneshot;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
+use futures::{Future, StreamExt};
+use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 
-use tokio_ipc::{
-    Connection, Endpoint, IntoIpcPath, IpcStream, OnConflict, SecurityAttributes, ServerId,
-};
+use tokio_ipc::{Connection, Endpoint, IntoIpcPath, IpcStream, SecurityAttributes, ServerId};
 
 fn dummy_endpoint(base: &str) -> ServerId<String> {
     let num: u64 = rand::Rng::gen(&mut rand::thread_rng());
@@ -83,13 +81,27 @@ where
 
 #[tokio::test]
 async fn single_id() {
-    let endpoint = Endpoint::new(dummy_endpoint("test"), OnConflict::Overwrite).unwrap();
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    let endpoint = Endpoint::new(dummy_endpoint("test"), options).unwrap();
     smoke_test(endpoint).await;
 }
 
 #[tokio::test]
 async fn nested_path() {
-    let endpoint = Endpoint::new(dummy_endpoint("test/test1"), OnConflict::Overwrite).unwrap();
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    let endpoint = Endpoint::new(dummy_endpoint("test/test1"), options).unwrap();
     smoke_test(endpoint).await;
 }
 
@@ -98,7 +110,10 @@ async fn nested_path() {
 #[tokio::test]
 async fn error_on_path_exists() {
     let path = dummy_endpoint("test");
-    let mut incoming = Endpoint::new(path.clone(), OnConflict::Error)
+    let options = tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Error,
+    };
+    let mut incoming = Endpoint::new(path.clone(), Some(options))
         .unwrap()
         .incoming()
         .unwrap();
@@ -106,13 +121,20 @@ async fn error_on_path_exists() {
         incoming.next().await;
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    assert!(Endpoint::new(path, OnConflict::Error).is_err());
+    assert!(Endpoint::new(path, Some(options)).is_err());
 }
 
 #[tokio::test]
 async fn ok_on_path_overwrite() {
     let path = dummy_endpoint("test");
-    let mut incoming = Endpoint::new(path.clone(), OnConflict::Overwrite)
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    let mut incoming = Endpoint::new(path.clone(), options)
         .unwrap()
         .incoming()
         .unwrap();
@@ -120,7 +142,7 @@ async fn ok_on_path_overwrite() {
         incoming.next().await;
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    assert!(Endpoint::new(path, OnConflict::Overwrite).is_ok());
+    assert!(Endpoint::new(path, options).is_ok());
 }
 
 #[cfg(unix)]
@@ -172,14 +194,27 @@ async fn incoming_stream_is_static() {
     fn is_static<T: 'static>(_: T) {}
 
     let path = dummy_endpoint("test");
-    let endpoint = Endpoint::new(path, OnConflict::Overwrite).unwrap();
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    let endpoint = Endpoint::new(path, options).unwrap();
     is_static(endpoint.incoming());
 }
 
 fn create_endpoint_with_permissions(attr: SecurityAttributes) -> ::std::io::Result<()> {
     let path = dummy_endpoint("test");
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
 
-    let endpoint = Endpoint::new(path, OnConflict::Overwrite)
+    let endpoint = Endpoint::new(path, options)
         .unwrap()
         .security_attributes(attr);
     endpoint.incoming().map(|_| ())

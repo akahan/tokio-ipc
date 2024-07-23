@@ -24,7 +24,9 @@ use windows_sys::Win32::System::SystemServices::{
     SECURITY_DESCRIPTOR_REVISION, SECURITY_WORLD_RID,
 };
 
-use crate::{IntoIpcPath, OnConflict, ServerId};
+use crate::{IntoIpcPath, ServerId};
+
+pub use tokio::net::windows::named_pipe::PipeMode;
 
 enum NamedPipe {
     Server(named_pipe::NamedPipeServer),
@@ -45,10 +47,15 @@ where
     }
 }
 
+pub struct EndpointOptions {
+    pub pipe_mode: PipeMode,
+}
+
 pub(crate) struct Endpoint {
     path: PathBuf,
     security_attributes: SecurityAttributes,
     created_listener: bool,
+    mode: PipeMode,
 }
 
 impl Endpoint {
@@ -56,6 +63,7 @@ impl Endpoint {
         let server = unsafe {
             named_pipe::ServerOptions::new()
                 .first_pipe_instance(!self.created_listener)
+                .pipe_mode(self.mode)
                 .reject_remote_clients(true)
                 .access_inbound(true)
                 .access_outbound(true)
@@ -112,11 +120,20 @@ impl Endpoint {
         &self.path
     }
 
-    pub(crate) fn new(path: impl IntoIpcPath, _on_conflict: OnConflict) -> io::Result<Self> {
+    pub(crate) fn new(
+        path: impl IntoIpcPath,
+        options: Option<EndpointOptions>,
+    ) -> io::Result<Self> {
+        let mode = match options {
+            None => PipeMode::Byte,
+            Some(options) => options.pipe_mode,
+        };
+
         Ok(Self {
             path: path.into_ipc_path()?,
             security_attributes: SecurityAttributes::empty(),
             created_listener: false,
+            mode,
         })
     }
 }

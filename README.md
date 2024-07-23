@@ -9,13 +9,20 @@ and named pipes on windows (via [`tokio::net::windows::named_pipe`](https://docs
 ## Server
 
 ```rust,no_run
-use tokio_ipc::{Endpoint, OnConflict, ServerId};
+use tokio_ipc::{Endpoint, ServerId};
 use futures::stream::StreamExt;
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    Endpoint::new(ServerId::new("my-server"), OnConflict::Overwrite)?
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: tokio_ipc::OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    Endpoint::new(ServerId::new("my-server"), options)?
         .incoming()?
         .for_each(|conn| async {
             match conn {

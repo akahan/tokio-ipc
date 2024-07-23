@@ -1,7 +1,7 @@
 use std::env::temp_dir;
 use std::ffi::CString;
 use std::fs;
-use std::io::{self, Error};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -25,7 +25,7 @@ impl SecurityAttributes {
             // mode_t doesn't need into() on mac but does on linux
             #[allow(clippy::useless_conversion)]
             if unsafe { chmod(path.as_ptr(), mode.into()) } == -1 {
-                return Err(Error::last_os_error());
+                return Err(io::Error::last_os_error());
             }
         }
 
@@ -70,6 +70,13 @@ where
     }
 }
 
+/// Endpoint options implementation for unix systems
+#[derive(Clone, Copy)]
+pub struct EndpointOptions {
+    /// How to proceed when the socket path already exists
+    pub on_conflict: OnConflict,
+}
+
 /// Endpoint implementation for unix systems
 pub(crate) struct Endpoint {
     path: PathBuf,
@@ -107,20 +114,25 @@ impl Endpoint {
         &self.path
     }
 
-    pub(crate) fn new(endpoint: impl IntoIpcPath, on_conflict: OnConflict) -> io::Result<Self> {
+    pub(crate) fn new(
+        endpoint: impl IntoIpcPath,
+        options: Option<EndpointOptions>,
+    ) -> io::Result<Self> {
         let path = endpoint.into_ipc_path()?;
-        if std::path::Path::new(&path).exists() {
-            match on_conflict {
-                OnConflict::Error => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        format!("Unable to bind to {path:?} because the path already exists"),
-                    ));
-                }
-                OnConflict::Overwrite => {
-                    fs::remove_file(&path)?;
-                }
-                OnConflict::Ignore => {}
+        if Path::new(&path).exists() {
+            match options {
+                None => {}
+                Some(options) => match options.on_conflict {
+                    OnConflict::Error => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::AlreadyExists,
+                            format!("Unable to bind to {path:?} because the path already exists"),
+                        ));
+                    }
+                    OnConflict::Overwrite => {
+                        fs::remove_file(&path)?;
+                    }
+                },
             }
         }
 

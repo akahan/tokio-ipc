@@ -29,12 +29,18 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 mod platform {
     #[cfg(unix)]
+    pub use crate::unix::EndpointOptions;
+    #[cfg(unix)]
     pub(crate) use crate::unix::{
         from_std_stream, Connection, Endpoint, IpcStream, SecurityAttributes,
     };
     #[cfg(windows)]
-    pub(crate) use crate::win::{Connection, Endpoint, IpcStream, SecurityAttributes};
+    pub use crate::win::{
+        Connection, Endpoint, EndpointOptions, IpcStream, PipeMode, SecurityAttributes,
+    };
 }
+
+pub use platform::EndpointOptions;
 
 /// Path used for an IPC client or server.
 pub trait IntoIpcPath: Send {
@@ -51,8 +57,6 @@ impl IntoIpcPath for PathBuf {
 /// How to proceed when the socket path already exists
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OnConflict {
-    /// Ignore the conflicting socket and continue
-    Ignore,
     /// Throw an error when attempting to bind to the path
     Error,
     /// Overwrite the existing socket
@@ -155,8 +159,8 @@ impl Endpoint {
     }
 
     /// New IPC endpoint at the given path
-    pub fn new(path: impl IntoIpcPath, on_conflict: OnConflict) -> io::Result<Self> {
-        Ok(Self(platform::Endpoint::new(path, on_conflict)?))
+    pub fn new(path: impl IntoIpcPath, options: Option<EndpointOptions>) -> io::Result<Self> {
+        Ok(Self(platform::Endpoint::new(path, options)?))
     }
 }
 

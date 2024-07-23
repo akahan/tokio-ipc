@@ -4,7 +4,14 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
 use tokio_ipc::{Endpoint, OnConflict, SecurityAttributes, ServerId};
 
 async fn run_server(path: String) {
-    let endpoint = Endpoint::new(ServerId::new(path), OnConflict::Overwrite)
+    #[cfg(not(windows))]
+    let options = Some(tokio_ipc::EndpointOptions {
+        on_conflict: OnConflict::Overwrite,
+    });
+    #[cfg(windows)]
+    let options = None;
+
+    let endpoint = Endpoint::new(ServerId::new(path), options)
         .unwrap()
         .security_attributes(SecurityAttributes::allow_everyone_create().unwrap());
 
