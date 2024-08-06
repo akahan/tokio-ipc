@@ -106,7 +106,7 @@ impl Endpoint {
         self
     }
 
-    pub(crate) async fn connect(path: impl IntoIpcPath) -> io::Result<Connection> {
+    pub(crate) async fn connect(path: impl IntoIpcPath, _options: Option<EndpointOptions>) -> io::Result<Connection> {
         UnixStream::connect(path.into_ipc_path()?).await
     }
 

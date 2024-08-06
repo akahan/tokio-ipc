@@ -40,9 +40,12 @@ mod platform {
     };
     #[cfg(windows)]
     pub use crate::win::EndpointOptions;
+    #[cfg(windows)]
+    pub use tokio::net::windows::named_pipe::PipeMode;
 }
 
 pub use platform::EndpointOptions;
+pub use platform::PipeMode;
 
 /// Path used for an IPC client or server.
 pub trait IntoIpcPath: Send {
@@ -156,8 +159,8 @@ impl Endpoint {
         self.0.path()
     }
     /// Make new connection using the provided path and running event pool.
-    pub async fn connect(path: impl IntoIpcPath) -> io::Result<Connection> {
-        Ok(Connection(platform::Endpoint::connect(path).await?))
+    pub async fn connect(path: impl IntoIpcPath, options: Option<EndpointOptions>) -> io::Result<Connection> {
+        Ok(Connection(platform::Endpoint::connect(path, options).await?))
     }
 
     /// New IPC endpoint at the given path

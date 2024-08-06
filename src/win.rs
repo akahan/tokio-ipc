@@ -83,18 +83,23 @@ impl Endpoint {
         Ok(server)
     }
 
-    pub(crate) async fn connect(path: impl IntoIpcPath) -> io::Result<Connection> {
+    pub(crate) async fn connect(
+        path: impl IntoIpcPath,
+        options: Option<EndpointOptions>,
+    ) -> io::Result<Connection> {
         let path = path.into_ipc_path()?;
 
         // There is not async equivalent of waiting for a named pipe in Windows,
         // so we keep trying or sleeping for a bit, until we hit a timeout
         let attempt_start = Instant::now();
+
+        let mut client_options = named_pipe::ClientOptions::new();
+        if let Some(options) = options {
+            client_options.pipe_mode(options.pipe_mode);
+        }
+
         let client = loop {
-            match named_pipe::ClientOptions::new()
-                .read(true)
-                .write(true)
-                .open(&path)
-            {
+            match client_options.read(true).write(true).open(&path) {
                 Ok(client) => break client,
                 Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
                     if attempt_start.elapsed() < PIPE_AVAILABILITY_TIMEOUT {
