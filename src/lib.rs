@@ -45,6 +45,7 @@ mod platform {
 }
 
 pub use platform::EndpointOptions;
+#[cfg(windows)]
 pub use platform::PipeMode;
 
 /// Path used for an IPC client or server.

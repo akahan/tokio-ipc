@@ -43,7 +43,7 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut client = Endpoint::connect(ServerId::new("my-server")).await?;
+    let mut client = Endpoint::connect(ServerId::new("my-server"), None).await?;
     client.write_all(b"ping").await?;
     Ok(())
 }

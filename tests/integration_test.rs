@@ -178,7 +178,7 @@ async fn smoke_test(endpoint: Endpoint) {
         }
     });
 
-    run_clients(|| Endpoint::connect(path.clone())).await;
+    run_clients(|| Endpoint::connect(path.clone(), None)).await;
 
     // shutdown server
     if let Ok(()) = shutdown_tx.send(()) {
