@@ -1,27 +1,26 @@
 use std::io;
 use std::time::Duration;
 
-use futures::channel::oneshot;
-use futures::{Future, StreamExt};
-use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
+use futures_channel::oneshot;
+use futures_util::{Future, StreamExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
 
 use tokio_ipc::{Connection, Endpoint, IntoIpcPath, IpcStream, SecurityAttributes, ServerId};
 
 fn dummy_endpoint(base: &str) -> ServerId<String> {
-    let num: u64 = rand::Rng::gen(&mut rand::thread_rng());
+    let num: u64 = rand::random();
     ServerId::new(format!("{base}-{num}"))
 }
 
 async fn run_server(endpoint: Endpoint) {
-    let endpoint =
-        endpoint.security_attributes(SecurityAttributes::empty().set_mode(0o777).unwrap());
+    let endpoint = endpoint.security_attributes(SecurityAttributes::empty().mode(0o777).unwrap());
     let incoming = endpoint.incoming().expect("failed to open up a new socket");
 
     run_stream(incoming).await;
 }
 
 async fn run_stream(incoming: IpcStream) {
-    futures::pin_mut!(incoming);
+    futures_util::pin_mut!(incoming);
     while let Some(result) = incoming.next().await {
         match result {
             Ok(stream) => {
@@ -155,7 +154,7 @@ async fn std_listener_stream() {
     let incoming = IpcStream::from_std_listener(listener).unwrap();
     tokio::spawn(async move {
         tokio::select! {
-            _ = run_stream(incoming) => {},
+            () = run_stream(incoming) => {},
             _ = shutdown_rx => {}
         }
     });
@@ -173,7 +172,7 @@ async fn smoke_test(endpoint: Endpoint) {
 
     tokio::spawn(async move {
         tokio::select! {
-            _ = run_server(endpoint) => {}
+            () = run_server(endpoint) => {}
             _ = shutdown_rx => {}
         }
     });
@@ -205,7 +204,7 @@ async fn incoming_stream_is_static() {
     is_static(endpoint.incoming());
 }
 
-fn create_endpoint_with_permissions(attr: SecurityAttributes) -> ::std::io::Result<()> {
+async fn create_endpoint_with_permissions(attr: SecurityAttributes) {
     let path = dummy_endpoint("test");
     #[cfg(not(windows))]
     let options = Some(tokio_ipc::EndpointOptions {
@@ -214,24 +213,20 @@ fn create_endpoint_with_permissions(attr: SecurityAttributes) -> ::std::io::Resu
     #[cfg(windows)]
     let options = None;
 
-    let endpoint = Endpoint::new(path, options)
+    let endpoint = Endpoint::new(path.clone(), options)
         .unwrap()
         .security_attributes(attr);
-    endpoint.incoming().map(|_| ())
+    let incoming = endpoint.incoming().unwrap();
+    Endpoint::connect(path).await.unwrap();
+    // Ensure we drop the server only after connecting
+    drop(incoming);
 }
 
 #[tokio::test]
 async fn test_endpoint_permissions() {
-    create_endpoint_with_permissions(SecurityAttributes::empty())
-        .expect("failed with no attributes");
-    create_endpoint_with_permissions(SecurityAttributes::allow_everyone_create().unwrap())
-        .expect("failed with attributes for creating");
-    create_endpoint_with_permissions(
-        SecurityAttributes::empty()
-            .allow_everyone_connect()
-            .unwrap(),
-    )
-    .expect("failed with attributes for connecting");
+    create_endpoint_with_permissions(SecurityAttributes::empty()).await;
+    create_endpoint_with_permissions(SecurityAttributes::allow_everyone_create().unwrap()).await;
+    create_endpoint_with_permissions(SecurityAttributes::allow_everyone_connect().unwrap()).await;
 }
 
 #[cfg(unix)]

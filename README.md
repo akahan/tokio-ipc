@@ -2,16 +2,20 @@
 
 This is a fork of [parity-tokio-ipc](https://github.com/paritytech/parity-tokio-ipc) -> [tipsy](https://github.com/aschey/tipsy).
 
-[Tokio-IPC](https://github.com/akahan/tokio-ipc) is a library for cross-platform async IPC using Tokio.
-It utilizes unix sockets on UNIX (via [`tokio::net::UnixStream`](https://docs.rs/tokio/latest/tokio/net/struct.UnixStream.html))
-and named pipes on windows (via [`tokio::net::windows::named_pipe`](https://docs.rs/tokio/latest/tokio/net/windows/named_pipe/index.html)).
+[Tokio-IPC](https://github.com/akahan/tokio-ipc) is a library for cross-platform async
+IPC using Tokio. It utilizes unix sockets on UNIX (via
+[`tokio::net::UnixStream`](https://docs.rs/tokio/latest/tokio/net/struct.UnixStream.html))
+and named pipes on windows (via
+[`tokio::net::windows::named_pipe`](https://docs.rs/tokio/latest/tokio/net/windows/named_pipe/index.html)).
 
 ## Server
 
 ```rust,no_run
 use tokio_ipc::{Endpoint, ServerId};
 use futures::stream::StreamExt;
+use futures_util::stream::StreamExt;
 use std::error::Error;
+use tipsy::{Endpoint, OnConflict, ServerId};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -37,9 +41,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 ## Client
 
 ```rust,no_run
+use std::error::Error;
 use tokio_ipc::{Endpoint, ServerId};
 use tokio::io::AsyncWriteExt;
-use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -55,4 +59,5 @@ See [examples](https://github.com/akahan/tokio-ipc/tree/main/examples).
 
 ## Supported Rust Versions
 
-The MSRV is currently `1.75.0`.
+The MSRV is currently `1.85.0`. Since Cargo's V3 resolver supports MSRV-aware
+dependencies, we do not treat an MSRV bump as a breaking change.

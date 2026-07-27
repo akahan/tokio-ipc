@@ -1,17 +1,9 @@
 //! Tokio IPC transport. Under the hood uses Unix Domain Sockets for Linux/Mac
 //! and Named Pipes for Windows.
 
-#![deny(missing_docs)]
+#![warn(missing_docs, missing_debug_implementations)]
 #![forbid(clippy::unwrap_used)]
-#![deny(rustdoc::broken_intra_doc_links)]
-#![warn(clippy::semicolon_if_nothing_returned)]
-#![warn(clippy::doc_markdown)]
-#![warn(clippy::default_trait_access)]
-#![warn(clippy::ignored_unit_patterns)]
-#![warn(clippy::semicolon_if_nothing_returned)]
-#![warn(clippy::missing_fields_in_debug)]
-#![warn(clippy::use_self)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
 #[cfg(not(windows))]
@@ -24,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::Stream;
+use futures_util::Stream;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 mod platform {
@@ -32,7 +24,7 @@ mod platform {
     pub use crate::unix::EndpointOptions;
     #[cfg(unix)]
     pub(crate) use crate::unix::{
-        from_std_stream, Connection, Endpoint, IpcStream, SecurityAttributes,
+        Connection, Endpoint, IpcStream, SecurityAttributes, from_std_stream,
     };
     #[cfg(windows)]
     pub(crate) use crate::win::{
@@ -69,7 +61,7 @@ pub enum OnConflict {
     Overwrite,
 }
 
-/// Cross-platform representation of an IPC connection path
+/// Cross-platform representation of an IPC connection path.
 ///
 /// Calling [`IntoIpcPath::into_ipc_path`] on this struct will generate a platform-specific IPC
 /// path.
@@ -79,6 +71,34 @@ pub enum OnConflict {
 /// Mac: `$TMPDIR/{serverId}.sock`
 ///
 /// Linux: `$XDG_RUNTIME_DIR/{serverId}.sock` (defaults to `$TMPDIR` if it doesn't exist)
+///
+/// The value for `serverId` can contain forward slashes, which will be interpreted as part of the
+/// path. On Windows, these will be converted to backslashes.
+///
+/// # Example
+///
+/// ```
+/// use std::env;
+///
+/// use tipsy::{IntoIpcPath, ServerId};
+///
+/// // Forcing these environment variables to ensure consistent results.
+/// // You probably don't want to do this in your application.
+/// unsafe {
+///     env::set_var("XDG_RUNTIME_DIR", "/tmp");
+///     env::set_var("TMPDIR", "/tmp");
+/// }
+///
+/// let server_id = ServerId::new("some/id");
+/// let path = server_id.into_ipc_path().unwrap();
+/// let path = path.to_string_lossy();
+///
+/// if cfg!(windows) {
+///     assert_eq!(r"\\.\pipe\some\id", path);
+/// } else {
+///     assert_eq!("/tmp/some/id.sock", path);
+/// }
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServerId<T>
 where
@@ -102,7 +122,26 @@ where
 
     /// Explicitly sets the parent folder for the socket instead of relying on the default
     /// OS-specific behavior. This only has an effect on Unix systems.
-    pub fn parent_folder(mut self, folder: impl Into<PathBuf>) -> Self {
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tipsy::{IntoIpcPath, ServerId};
+    ///
+    /// let server_id = ServerId::new("myid").parent_folder("/home");
+    /// let path = server_id.into_ipc_path().unwrap();
+    /// let path = path.to_string_lossy();
+    ///
+    /// if cfg!(windows) {
+    ///     assert_eq!(r"\\.\pipe\myid", path);
+    /// } else {
+    ///     assert_eq!("/home/myid.sock", path);
+    /// }
+    /// ```
+    pub fn parent_folder<P>(mut self, folder: P) -> Self
+    where
+        P: Into<PathBuf>,
+    {
         self.parent_folder = Some(folder.into());
         self
     }
@@ -117,7 +156,8 @@ where
     }
 }
 
-/// Permissions and ownership for the IPC connection
+/// Permissions and ownership for the IPC connection.
+#[derive(Debug)]
 pub struct SecurityAttributes(platform::SecurityAttributes);
 
 impl SecurityAttributes {
@@ -127,22 +167,29 @@ impl SecurityAttributes {
     }
 
     /// New default security attributes that allow everyone to connect.
-    pub fn allow_everyone_connect(self) -> io::Result<Self> {
-        Ok(Self(self.0.allow_everyone_connect()?))
+    ///
+    /// On Windows, this is equivalent to [`SecurityAttributes::allow_everyone_create`].
+    pub fn allow_everyone_connect() -> io::Result<Self> {
+        Ok(Self(platform::SecurityAttributes::allow_everyone_connect()?))
     }
 
     /// Set a custom permission on the socket.
-    pub fn set_mode(self, mode: u16) -> io::Result<Self> {
-        Ok(Self(self.0.set_mode(mode)?))
+    ///
+    /// Has no effect on Windows.
+    pub fn mode(self, mode: u16) -> io::Result<Self> {
+        Ok(Self(self.0.mode(mode)?))
     }
 
     /// New default security attributes that allow everyone to create.
+    ///
+    /// On Windows, this is equivalent to [`SecurityAttributes::allow_everyone_connect`].
     pub fn allow_everyone_create() -> io::Result<Self> {
         Ok(Self(platform::SecurityAttributes::allow_everyone_create()?))
     }
 }
 
 /// IPC endpoint.
+#[derive(Debug)]
 pub struct Endpoint(platform::Endpoint);
 
 impl Endpoint {
@@ -160,17 +207,24 @@ impl Endpoint {
         self.0.path()
     }
     /// Make new connection using the provided path and running event pool.
-    pub async fn connect(path: impl IntoIpcPath, options: Option<EndpointOptions>) -> io::Result<Connection> {
+    pub async fn connect<P>(path: P, options: Option<EndpointOptions>)) -> io::Result<Connection>
+    where
+        P: IntoIpcPath,
+    {
         Ok(Connection(platform::Endpoint::connect(path, options).await?))
     }
 
     /// New IPC endpoint at the given path
-    pub fn new(path: impl IntoIpcPath, options: Option<EndpointOptions>) -> io::Result<Self> {
+    pub fn new<P>(path: P, options: Option<EndpointOptions>) -> io::Result<Self>
+    where
+        P: IntoIpcPath,
+    {
         Ok(Self(platform::Endpoint::new(path, options)?))
     }
 }
 
 /// IPC connection.
+#[derive(Debug)]
 pub struct Connection(platform::Connection);
 
 impl Connection {
@@ -214,6 +268,7 @@ impl AsyncWrite for Connection {
 }
 
 /// Stream of incoming connections.
+#[derive(Debug)]
 pub struct IpcStream(platform::IpcStream);
 
 impl IpcStream {

@@ -1,8 +1,8 @@
 [package]
 name = "tokio-ipc"
-version = "0.3.0"
-rust-version = "1.75.0"
-edition = "2021"
+version = "0.3.1"
+rust-version = "1.85.0"
+edition = "2024"
 authors = ["NikVolf <nikvolf@gmail.com>", "Austin Schey <aschey13@gmail.com>", "Aka Han <a.akahan@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -11,35 +11,53 @@ homepage = "https://github.com/akahan/tokio-ipc"
 keywords = ["tokio", "ipc"]
 categories = ["asynchronous", "network-programming"]
 description = "Cross-platform IPC for Tokio"
-include = ["/src", "/examples", "/tests"]
+include = ["/src", "/examples", "/tests", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
-futures = "0.3"
+futures-util = "0.3"
 tokio = { version = "1", features = ["net", "time"] }
 tracing = "0.1.36"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-dirs = "5"
+dirs = "6"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.52", features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_System_SystemServices",
-    "Win32_Storage_FileSystem",
-    "Win32_Security_Authorization",
-    "Win32_System_Memory",
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_SystemServices",
+  "Win32_Storage_FileSystem",
+  "Win32_Security_Authorization",
+  "Win32_System_Memory",
 ] }
 
 [dev-dependencies]
 tokio = { version = "1.37.0", features = [
-    "io-util",
-    "rt-multi-thread",
-    "time",
-    "macros",
+  "io-util",
+  "rt-multi-thread",
+  "time",
+  "macros",
 ] }
-rand = "0.8.5"
+rand = "0.10.0"
+futures-channel = "0.3.31"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[lints.clippy]
+allow_attributes = "deny"
+doc_markdown = "warn"
+default_trait_access = "warn"
+ignored_unit_patterns = "warn"
+semicolon_if_nothing_returned = "warn"
+missing_fields_in_debug = "warn"
+use_self = "warn"
+impl_trait_in_params = "warn"
+missing_panics_doc = "warn"
+explicit_iter_loop = "warn"
+explicit_into_iter_loop = "warn"
+redundant_closure_for_method_calls = "warn"
 
 [[example]]
 name = "client"

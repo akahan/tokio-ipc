@@ -6,13 +6,14 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::Stream;
+use futures_util::Stream;
 use libc::chmod;
 use tokio::net::{UnixListener, UnixStream};
 use tracing::trace;
 
 use crate::{IntoIpcPath, OnConflict, ServerId};
 
+#[derive(Debug)]
 pub(crate) struct SecurityAttributes {
     // read/write permissions for owner, group and others in unix octal.
     mode: Option<u16>,
@@ -23,7 +24,7 @@ impl SecurityAttributes {
         if let Some(mode) = self.mode {
             let path = CString::new(path)?;
             // mode_t doesn't need into() on mac but does on linux
-            #[allow(clippy::useless_conversion)]
+            #[cfg_attr(target_os = "macos", expect(clippy::useless_conversion))]
             if unsafe { chmod(path.as_ptr(), mode.into()) } == -1 {
                 return Err(io::Error::last_os_error());
             }
@@ -36,14 +37,12 @@ impl SecurityAttributes {
         Self { mode: Some(0o600) }
     }
 
-    pub(crate) fn allow_everyone_connect(mut self) -> io::Result<Self> {
-        self.mode = Some(0o666);
-        Ok(self)
+    pub(crate) fn allow_everyone_connect() -> io::Result<Self> {
+        Ok(Self { mode: Some(0o666) })
     }
 
-    pub(crate) fn set_mode(mut self, mode: u16) -> io::Result<Self> {
-        self.mode = Some(mode);
-        Ok(self)
+    pub(crate) fn mode(self, mode: u16) -> io::Result<Self> {
+        Ok(Self { mode: Some(mode) })
     }
 
     pub(crate) fn allow_everyone_create() -> io::Result<Self> {
@@ -78,6 +77,7 @@ pub struct EndpointOptions {
 }
 
 /// Endpoint implementation for unix systems
+#[derive(Debug)]
 pub(crate) struct Endpoint {
     path: PathBuf,
     security_attributes: SecurityAttributes,
@@ -150,6 +150,7 @@ pub(crate) async fn from_std_stream(
     UnixStream::from_std(stream)
 }
 
+#[derive(Debug)]
 pub(crate) struct IpcStream {
     path: Option<PathBuf>,
     listener: UnixListener,

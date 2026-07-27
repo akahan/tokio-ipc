@@ -1,25 +1,26 @@
+use core::fmt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{io, marker, mem, ptr};
 
-use futures::{Stream, StreamExt};
+use futures_util::{Stream, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::windows::named_pipe;
 use windows_sys::Win32::Foundation::{
-    LocalFree, ERROR_PIPE_BUSY, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HLOCAL, PSID,
+    ERROR_PIPE_BUSY, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HLOCAL, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
-    SetEntriesInAclW, ACCESS_MODE, EXPLICIT_ACCESS_W, SET_ACCESS, TRUSTEE_IS_SID,
+    ACCESS_MODE, EXPLICIT_ACCESS_W, SET_ACCESS, SetEntriesInAclW, TRUSTEE_IS_SID,
     TRUSTEE_IS_WELL_KNOWN_GROUP, TRUSTEE_TYPE,
 };
 use windows_sys::Win32::Security::{
-    AllocateAndInitializeSid, FreeSid, InitializeSecurityDescriptor, SetSecurityDescriptorDacl,
-    ACL, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, SID_IDENTIFIER_AUTHORITY,
+    ACL, AllocateAndInitializeSid, FreeSid, InitializeSecurityDescriptor, PSECURITY_DESCRIPTOR,
+    PSID, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, SID_IDENTIFIER_AUTHORITY,
+    SetSecurityDescriptorDacl,
 };
-use windows_sys::Win32::Storage::FileSystem::FILE_WRITE_DATA;
-use windows_sys::Win32::System::Memory::{LocalAlloc, LPTR};
+use windows_sys::Win32::System::Memory::{LPTR, LocalAlloc};
 use windows_sys::Win32::System::SystemServices::{
     SECURITY_DESCRIPTOR_REVISION, SECURITY_WORLD_RID,
 };
@@ -28,6 +29,7 @@ use crate::{IntoIpcPath, ServerId};
 
 pub use tokio::net::windows::named_pipe::PipeMode;
 
+#[derive(Debug)]
 enum NamedPipe {
     Server(named_pipe::NamedPipeServer),
     Client(named_pipe::NamedPipeClient),
@@ -55,8 +57,10 @@ pub struct EndpointOptions {
 }
 
 /// Endpoint implementation for Windows systems
+#[derive(Debug)]
 pub(crate) struct Endpoint {
     path: PathBuf,
+    // This is not safe to clone due to usage of pointers that are freed on drop
     security_attributes: SecurityAttributes,
     created_listener: bool,
     mode: PipeMode,
@@ -151,18 +155,26 @@ pub(crate) struct IpcStream {
     inner: Pin<Box<dyn Stream<Item = io::Result<Connection>> + Send>>,
 }
 
+impl fmt::Debug for IpcStream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<stream>")
+    }
+}
+
 impl IpcStream {
     pub(crate) fn new(mut endpoint: Endpoint) -> io::Result<Self> {
         let pipe = endpoint.create_listener()?;
 
-        let stream =
-            futures::stream::try_unfold((pipe, endpoint), |(listener, mut endpoint)| async move {
+        let stream = futures_util::stream::try_unfold(
+            (pipe, endpoint),
+            |(listener, mut endpoint)| async move {
                 listener.connect().await?;
                 let new_listener = endpoint.create_listener()?;
                 let conn = Connection::wrap(NamedPipe::Server(listener));
 
                 Ok(Some((conn, (new_listener, endpoint))))
-            });
+            },
+        );
         Ok(Self {
             inner: Box::pin(stream),
         })
@@ -178,6 +190,7 @@ impl Stream for IpcStream {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Connection {
     inner: NamedPipe,
 }
@@ -233,6 +246,7 @@ impl AsyncWrite for Connection {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SecurityAttributes {
     attributes: Option<InnerAttributes>,
 }
@@ -255,9 +269,11 @@ const DEFAULT_SECURITY_ATTRIBUTES: SecurityAttributes = SecurityAttributes {
 
 impl SecurityAttributes {
     pub(crate) unsafe fn as_ptr(&mut self) -> *const SECURITY_ATTRIBUTES {
-        match self.attributes.as_mut() {
-            Some(attributes) => attributes.as_ptr(),
-            None => ptr::null_mut(),
+        unsafe {
+            match self.attributes.as_mut() {
+                Some(attributes) => attributes.as_ptr(),
+                None => ptr::null_mut(),
+            }
         }
     }
 
@@ -265,14 +281,11 @@ impl SecurityAttributes {
         DEFAULT_SECURITY_ATTRIBUTES
     }
 
-    pub(crate) fn allow_everyone_connect(self) -> io::Result<Self> {
-        let attributes = Some(InnerAttributes::allow_everyone(
-            GENERIC_READ | FILE_WRITE_DATA,
-        )?);
-        Ok(Self { attributes })
+    pub(crate) fn allow_everyone_connect() -> io::Result<Self> {
+        Self::allow_everyone_create()
     }
 
-    pub(crate) fn set_mode(self, _mode: u16) -> io::Result<Self> {
+    pub(crate) fn mode(self, _mode: u16) -> io::Result<Self> {
         // for now, does nothing.
         Ok(self)
     }
@@ -341,7 +354,7 @@ struct AceWithSid<'a> {
 }
 
 impl<'a> AceWithSid<'a> {
-    fn new(sid: &'a Sid, trustee_type: TRUSTEE_TYPE) -> AceWithSid<'a> {
+    fn new(sid: &'a Sid, trustee_type: TRUSTEE_TYPE) -> Self {
         let mut explicit_access = unsafe { mem::zeroed::<EXPLICIT_ACCESS_W>() };
         explicit_access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
         explicit_access.Trustee.TrusteeType = trustee_type;
@@ -369,6 +382,7 @@ impl<'a> AceWithSid<'a> {
     }
 }
 
+#[derive(Debug)]
 struct Acl {
     acl_ptr: *const ACL,
 }
@@ -409,6 +423,7 @@ impl Drop for Acl {
     }
 }
 
+#[derive(Debug)]
 struct SecurityDescriptor {
     descriptor_ptr: PSECURITY_DESCRIPTOR,
 }
@@ -418,10 +433,7 @@ impl SecurityDescriptor {
         let descriptor_ptr = unsafe { LocalAlloc(LPTR, mem::size_of::<SECURITY_DESCRIPTOR>()) }
             as PSECURITY_DESCRIPTOR;
         if descriptor_ptr.is_null() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Failed to allocate security descriptor",
-            ));
+            return Err(io::Error::other("Failed to allocate security descriptor"));
         }
 
         if unsafe {
@@ -461,6 +473,16 @@ struct InnerAttributes {
     descriptor: SecurityDescriptor,
     acl: Acl,
     attrs: SECURITY_ATTRIBUTES,
+}
+
+impl fmt::Debug for InnerAttributes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InnerAttributes")
+            .field("descriptor", &self.descriptor)
+            .field("acl", &self.acl)
+            .field("attrs", &"<attrs>")
+            .finish()
+    }
 }
 
 impl InnerAttributes {
