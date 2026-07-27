@@ -1,10 +1,9 @@
 use std::env::temp_dir;
 use std::ffi::CString;
-use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::{fs, io};
 
 use futures_util::Stream;
 use libc::chmod;
@@ -70,7 +69,7 @@ where
 }
 
 /// Endpoint options implementation for unix systems
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct EndpointOptions {
     /// How to proceed when the socket path already exists
     pub on_conflict: OnConflict,
@@ -106,7 +105,10 @@ impl Endpoint {
         self
     }
 
-    pub(crate) async fn connect(path: impl IntoIpcPath, _options: Option<EndpointOptions>) -> io::Result<Connection> {
+    pub(crate) async fn connect(
+        path: impl IntoIpcPath,
+        _options: Option<EndpointOptions>,
+    ) -> io::Result<Connection> {
         UnixStream::connect(path.into_ipc_path()?).await
     }
 

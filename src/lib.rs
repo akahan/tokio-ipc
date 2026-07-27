@@ -20,6 +20,9 @@ use futures_util::Stream;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 mod platform {
+    #[cfg(windows)]
+    pub use tokio::net::windows::named_pipe::PipeMode;
+
     #[cfg(unix)]
     pub use crate::unix::EndpointOptions;
     #[cfg(unix)]
@@ -27,13 +30,9 @@ mod platform {
         Connection, Endpoint, IpcStream, SecurityAttributes, from_std_stream,
     };
     #[cfg(windows)]
-    pub(crate) use crate::win::{
-        Connection, Endpoint, IpcStream, SecurityAttributes,
-    };
-    #[cfg(windows)]
     pub use crate::win::EndpointOptions;
     #[cfg(windows)]
-    pub use tokio::net::windows::named_pipe::PipeMode;
+    pub(crate) use crate::win::{Connection, Endpoint, IpcStream, SecurityAttributes};
 }
 
 pub use platform::EndpointOptions;
@@ -207,11 +206,13 @@ impl Endpoint {
         self.0.path()
     }
     /// Make new connection using the provided path and running event pool.
-    pub async fn connect<P>(path: P, options: Option<EndpointOptions>)) -> io::Result<Connection>
+    pub async fn connect<P>(path: P, options: Option<EndpointOptions>) -> io::Result<Connection>
     where
         P: IntoIpcPath,
     {
-        Ok(Connection(platform::Endpoint::connect(path, options).await?))
+        Ok(Connection(
+            platform::Endpoint::connect(path, options).await?,
+        ))
     }
 
     /// New IPC endpoint at the given path

@@ -8,6 +8,7 @@ use std::{io, marker, mem, ptr};
 use futures_util::{Stream, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::windows::named_pipe;
+pub use tokio::net::windows::named_pipe::PipeMode;
 use windows_sys::Win32::Foundation::{
     ERROR_PIPE_BUSY, ERROR_SUCCESS, GENERIC_READ, GENERIC_WRITE, HLOCAL, LocalFree,
 };
@@ -26,8 +27,6 @@ use windows_sys::Win32::System::SystemServices::{
 };
 
 use crate::{IntoIpcPath, ServerId};
-
-pub use tokio::net::windows::named_pipe::PipeMode;
 
 #[derive(Debug)]
 enum NamedPipe {
@@ -50,7 +49,7 @@ where
 }
 
 /// Endpoint options implementation for Windows systems
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct EndpointOptions {
     /// The pipe mode of a named pipe.
     pub pipe_mode: PipeMode,

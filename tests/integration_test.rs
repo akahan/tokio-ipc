@@ -4,7 +4,6 @@ use std::time::Duration;
 use futures_channel::oneshot;
 use futures_util::{Future, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
-
 use tokio_ipc::{Connection, Endpoint, IntoIpcPath, IpcStream, SecurityAttributes, ServerId};
 
 fn dummy_endpoint(base: &str) -> ServerId<String> {
@@ -217,7 +216,7 @@ async fn create_endpoint_with_permissions(attr: SecurityAttributes) {
         .unwrap()
         .security_attributes(attr);
     let incoming = endpoint.incoming().unwrap();
-    Endpoint::connect(path).await.unwrap();
+    Endpoint::connect(path, None).await.unwrap();
     // Ensure we drop the server only after connecting
     drop(incoming);
 }

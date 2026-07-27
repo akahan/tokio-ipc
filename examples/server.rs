@@ -1,6 +1,6 @@
 use futures_util::StreamExt as _;
-use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
-use tokio_ipc::{Endpoint, SecurityAttributes, ServerId};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
+use tokio_ipc::{Endpoint, ServerId};
 
 async fn run_server(path: String) {
     #[cfg(not(windows))]
